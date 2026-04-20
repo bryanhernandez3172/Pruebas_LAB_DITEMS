@@ -25,6 +25,7 @@
 #include "Display_Oled/Display_Bitmaps.h"
 #include "Menu/Menu.h"
 #include "BatteryMonitor.h"
+#include "GPS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,6 +51,9 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+
+/* GPS module */
+Gps_Handle_t hgps;
 
 /* Menu system */
 Menu_Handle_t hmenu;
@@ -127,11 +131,11 @@ int main(void)
   /* Menu system */
   Menu_Init(&hmenu);
   ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
-  /* SIENT logo */
-//  ssd1306_clearDisplay();
-//  ssd1306_drawBitmap(0, 0, bitmap_Logo_SIENT, 64, 32, WHITE);
-//  ssd1306_display();
-//  HAL_Delay(2000);
+
+  /* GPS module */
+  Gps_Init(&hgps);
+  Gps_SendMTK(&hgps, GPS_OUTPUT_RMC_GGA);
+  Gps_SendMTK(&hgps, GPS_FIX_0_5HZ);
 
   /* USER CODE END 2 */
 
@@ -144,21 +148,24 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	/* ============================================================
+	 *  GPS MODULE
+	 * ============================================================ */
+    Gps_Process(&hgps);
+
+	/* ============================================================
 	 *  MENU SYSTEM — Poll buttons and update display
 	 * ============================================================ */
-
 //    Menu_Poll(&hmenu);
 //    Menu_Update(&hmenu);
 
 	/* ============================================================
 	 *  BATTERY MONITOR (BQ27441 + ADC POT)
 	 * ============================================================ */
-
-    static uint32_t bat_last_tick = 0U;
-    if ((HAL_GetTick() - bat_last_tick) >= 1000U) {
-        bat_last_tick = HAL_GetTick();
-        BatGauge_ReadAll(&bat_data);
-    }
+//    static uint32_t bat_last_tick = 0U;
+//    if ((HAL_GetTick() - bat_last_tick) >= 1000U) {
+//        bat_last_tick = HAL_GetTick();
+//        BatGauge_ReadAll(&bat_data);
+//    }
 
     /* ADC potentiometer reading (optional, disabled) */
 //    bat_adc_raw = BatAdc_ReadRaw();
@@ -413,6 +420,30 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	/* RS485 reception */
+//    if (huart->Instance == huart1.Instance) {
+//        RS485_StoreByte(&frame_rx);
+//
+//        /* Re-arm interrupt for next byte */
+//        HAL_UART_Receive_IT(&huart1, &frame_rx.rx_byte, 1U);
+//    }
+
+    /* LoRa reception */
+//    if (huart->Instance == LORA_UART->Instance) {
+//        Lora_StoreByte(&hlora);
+//    }
+
+    /* GPS reception */
+    if (huart->Instance == GPS_UART->Instance) {
+        Gps_StoreByte(&hgps);
+    }
+
+    /* Bluetooth reception */
+//    if (huart->Instance == BT_UART->Instance) {
+//        Bt_StoreByte(&hbt);
+//    }
+}
 /**
  * @brief  Scans all 7-bit I2C addresses and stores responding ones.
  * @param  hi2c      I2C handle to scan on.
