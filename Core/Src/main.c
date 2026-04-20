@@ -121,13 +121,8 @@ int main(void)
   /*Auxiliary functions */
   I2C_Scan(&hi2c1, i2c_scan_addr, 10);
 
-  /* Battery monitor BQ27441 */
+  /* Battery monitor BQ27441 — auto-configures if ITPOR is set */
   bat_st = BatGauge_Init();
-  /* Force exit CFGUPDATE if gauge got stuck from a previous failed configure */
-  BatGauge_SoftReset();
-  HAL_Delay(1000);
-  bat_st = BatGauge_Configure();  /* Run once to set battery params, then comment out */
-  HAL_Delay(2000);  /* Let gauge settle after configuration */
 
   /* Menu system */
   Menu_Init(&hmenu);
@@ -152,27 +147,22 @@ int main(void)
 	 *  MENU SYSTEM — Poll buttons and update display
 	 * ============================================================ */
 
-    Menu_Poll(&hmenu);
-    Menu_Update(&hmenu);
+//    Menu_Poll(&hmenu);
+//    Menu_Update(&hmenu);
 
 	/* ============================================================
 	 *  BATTERY MONITOR (BQ27441 + ADC POT)
 	 * ============================================================ */
 
-	/* Test 1: Read all gauge registers */
-	memset(&bat_data, 0, sizeof(bat_data));
-	BatGauge_ReadAll(&bat_data);
-	HAL_Delay(1000);
+    static uint32_t bat_last_tick = 0U;
+    if ((HAL_GetTick() - bat_last_tick) >= 1000U) {
+        bat_last_tick = HAL_GetTick();
+        BatGauge_ReadAll(&bat_data);
+    }
 
-	/* Test 2: Read single register (voltage only) */
-//    uint16_t bat_volt;
-//    BatGauge_ReadReg(BQ27441_REG_VOLTAGE, &bat_volt);
-//    HAL_Delay(1000);
-
-	/* Test 3: ADC potentiometer reading */
+    /* ADC potentiometer reading (optional, disabled) */
 //    bat_adc_raw = BatAdc_ReadRaw();
 //    bat_adc_mV  = BatAdc_ReadVoltage_mV();
-//    HAL_Delay(1000);
 
   }
   /* USER CODE END 3 */
