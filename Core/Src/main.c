@@ -66,6 +66,8 @@ HAL_StatusTypeDef bat_st;
 
 /* ---- Auxiliary variables ---- */
 uint8_t i2c_scan_addr[10];
+uint16_t cont_uart=0;
+uint8_t rx;
 
 /* USER CODE END PV */
 
@@ -150,7 +152,10 @@ int main(void)
 	/* ============================================================
 	 *  GPS MODULE
 	 * ============================================================ */
-    Gps_Process(&hgps);
+    //Gps_Process(&hgps);
+    if (HAL_UART_Receive(&huart1, &rx, 1, 100) == HAL_OK){
+    	cont_uart++;
+    }
 
 	/* ============================================================
 	 *  MENU SYSTEM — Poll buttons and update display
