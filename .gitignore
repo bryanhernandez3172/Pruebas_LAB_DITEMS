@@ -1,0 +1,57 @@
+# =========================================================
+# .gitignore — Proyecto STM32CubeIDE
+# =========================================================
+
+# -------------------------
+# Directorios de compilación
+# -------------------------
+Debug/
+Release/
+build/
+
+# -------------------------
+# Binarios y objetos
+# -------------------------
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.su
+
+# -------------------------
+# Archivos de STM32CubeIDE / Eclipse
+# -------------------------
+.metadata/
+.settings/
+*.launch
+*.prefs
+
+# -------------------------
+# Archivos generados por CubeMX
+# (si prefieres regenerarlos, no commitearlos)
+# Comenta estas líneas si quieres versionar el .ioc y los archivos generados
+# -------------------------
+# Middlewares/
+# Drivers/
+
+# -------------------------
+# Archivos del sistema
+# -------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -------------------------
+# IDEs externos
+# -------------------------
+.vscode/
+.idea/
+.claude/
+CLAUDE.md
+Core/Doc/
+*.keil
+*.uvprojx
+*.uvoptx
