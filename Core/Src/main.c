@@ -26,6 +26,7 @@
 #include "Menu/Menu.h"
 #include "BatteryMonitor.h"
 #include "GPS.h"
+#include "ICM20948.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,6 +64,15 @@ BatGauge_Data_t bat_data;
 uint16_t        bat_adc_raw;
 uint32_t        bat_adc_mV;
 HAL_StatusTypeDef bat_st;
+
+/* ICM-20948 9-axis IMU */
+ICM20948_t         icm;
+ICM20948_Data_t    icm_data;
+ICM20948_Status_e  icm_init_status;
+ICM20948_Status_e  icm_cal_status;
+ICM20948_Status_e  icm_read_status;
+uint8_t            icm_who_am_i;
+uint32_t           icm_last_read_ms;
 
 /* ---- Auxiliary variables ---- */
 uint8_t i2c_scan_addr[10];
@@ -139,6 +149,13 @@ int main(void)
   Gps_SendMTK(&hgps, GPS_OUTPUT_RMC_GGA);
   Gps_SendMTK(&hgps, GPS_FIX_0_5HZ);
 
+  /* ICM-20948 9-axis IMU (I2C1) — keep the board still until calibration ends */
+  icm_init_status = ICM20948_Init(&icm);
+  ICM20948_WhoAmI(&icm, &icm_who_am_i);
+  if (icm_init_status == ICM20948_OK) {
+      icm_cal_status = ICM20948_CalibrateGyroBias(&icm);
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -176,6 +193,12 @@ int main(void)
 //    bat_adc_raw = BatAdc_ReadRaw();
 //    bat_adc_mV  = BatAdc_ReadVoltage_mV();
 
+    /* ============================================================
+     *  ICM-20948 9-AXIS IMU
+     * ============================================================ */
+	  icm_read_status  = ICM20948_ReadAll(&icm, &icm_data);
+	  HAL_Delay(1);
+
   }
   /* USER CODE END 3 */
 }
@@ -198,7 +221,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV1;
+  RCC_OscInitStruct.PLL.PLLN = 24;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -209,14 +238,14 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK4|RCC_CLOCKTYPE_HCLK2
                               |RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLK2Divider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLK2Divider = RCC_SYSCLK_DIV2;
   RCC_ClkInitStruct.AHBCLK4Divider = RCC_SYSCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -317,7 +346,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00100D14;
+  hi2c1.Init.Timing = 0x10805D88;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
