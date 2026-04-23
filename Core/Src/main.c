@@ -79,6 +79,13 @@ uint8_t i2c_scan_addr[10];
 uint16_t cont_uart=0;
 uint8_t rx;
 
+/* GPS tracking test */
+#define GPS_TRACKING_WINDOW_MS   30000U   /* active session duration  */
+#define GPS_TRACKING_UPDATE_MS    3000U   /* Gps_UpdateTracking period */
+#define GPS_TRACKING_PAUSE_MS     5000U   /* blocking pause between sessions */
+static uint32_t track_session_start_ms = 0U;
+static uint32_t track_last_update_ms   = 0U;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -139,6 +146,7 @@ int main(void)
 
   /* Battery monitor BQ27441 — auto-configures if ITPOR is set */
   bat_st = BatGauge_Init();
+  HAL_Delay(200);
 
   /* Menu system */
   Menu_Init(&hmenu);
@@ -170,27 +178,27 @@ int main(void)
 	     *  GPS MODULE
 	     * ============================================================ */
 		/*Get and process all data */
-	//    Gps_Process(&hgps);
-	//
-	//    /* ---- Tracking: 30-s session → stop → 5-s pause → restart ---- */
-	//    uint32_t now = HAL_GetTick();
-	//
-	//    /* Call Gps_UpdateTracking every 3 s while the session is active */
-	//    if (hgps.tracking_active) {
-	//        if ((now - track_last_update_ms) >= GPS_TRACKING_UPDATE_MS) {
-	//            Gps_UpdateTracking(&hgps);
-	//            track_last_update_ms = now;
-	//        }
-	//
-	//        /* End of 30-s window */
-	//        if ((now - track_session_start_ms) >= GPS_TRACKING_WINDOW_MS) {
-	//            Gps_StopTracking(&hgps);
-	//            HAL_Delay(GPS_TRACKING_PAUSE_MS);   /* 5-s blocking pause */
-	//            Gps_StartTracking(&hgps);
-	//            track_session_start_ms = HAL_GetTick();
-	//            track_last_update_ms   = track_session_start_ms;
-	//        }
-	//    }
+	    Gps_Process(&hgps);
+
+	    /* ---- Tracking: 30-s session → stop → 5-s pause → restart ---- */
+	    uint32_t now = HAL_GetTick();
+
+	    /* Call Gps_UpdateTracking every 3 s while the session is active */
+	    if (hgps.tracking_active) {
+	        if ((now - track_last_update_ms) >= GPS_TRACKING_UPDATE_MS) {
+	            Gps_UpdateTracking(&hgps);
+	            track_last_update_ms = now;
+	        }
+
+	        /* End of 30-s window */
+	        if ((now - track_session_start_ms) >= GPS_TRACKING_WINDOW_MS) {
+	            Gps_StopTracking(&hgps);
+	            HAL_Delay(GPS_TRACKING_PAUSE_MS);   /* 5-s blocking pause */
+	            Gps_StartTracking(&hgps);
+	            track_session_start_ms = HAL_GetTick();
+	            track_last_update_ms   = track_session_start_ms;
+	        }
+	    }
 
 	/* ============================================================
 	 *  MENU SYSTEM — Poll buttons and update display
@@ -201,15 +209,12 @@ int main(void)
 	/* ============================================================
 	 *  BATTERY MONITOR (BQ27441 + ADC POT)
 	 * ============================================================ */
-//    static uint32_t bat_last_tick = 0U;
-//    if ((HAL_GetTick() - bat_last_tick) >= 1000U) {
-//        bat_last_tick = HAL_GetTick();
-//        BatGauge_ReadAll(&bat_data);
-//    }
-
-    /* ADC potentiometer reading (optional, disabled) */
+	/* Read all gauge registers + ADC */
+	memset(&bat_data, 0, sizeof(bat_data));
+	BatGauge_ReadAll(&bat_data);
 //    bat_adc_raw = BatAdc_ReadRaw();
 //    bat_adc_mV  = BatAdc_ReadVoltage_mV();
+	HAL_Delay(1000);
 
     /* ============================================================
      *  ICM-20948 9-AXIS IMU

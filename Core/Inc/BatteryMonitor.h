@@ -50,18 +50,11 @@
 /* ========================  BATTERY PARAMETERS  ============================= */
 
 /** @brief Change these values if you swap the battery cell. */
-#define BAT_DESIGN_CAP_MAH      320U    /**< Design capacity in mAh          */
-#define BAT_DESIGN_ENERGY_MWH   1184U   /**< Design energy in mWh (Cap*3.7)  */
-#define BAT_TERMINATE_MV        3000U   /**< Terminate voltage in mV         */
-#define BAT_TAPER_RATE          267U    /**< Taper rate = Cap / (0.1 * Itaper) */
-
-/* ========================  STATE DETECTION THRESHOLDS  ===================== */
-
-#define BAT_IDLE_CURRENT_MA     10U     /**< |I| below this → IDLE state     */
-#define BAT_FULL_VOLTAGE_MV     4180U   /**< V ≥ this OR FC flag → full      */
-#define BAT_MIN_VOLTAGE_MV      2000U   /**< Lower sanity limit (mV)         */
-#define BAT_MAX_VOLTAGE_MV      4500U   /**< Upper sanity limit (mV)         */
-#define BAT_ETA_INVALID         0xFFFFU /**< ETA not available (idle / full) */
+#define BAT_DESIGN_CAP_MAH      400U    /**< Design capacity in mAh          */
+#define BAT_DESIGN_ENERGY_MWH   1480U   /**< Design energy in mWh            */
+#define BAT_TERMINATE_MV        3200U   /**< Terminate voltage in mV         */
+#define BAT_TAPER_CURRENT_MA    40U     /**< Taper current in mA             */
+#define BAT_TAPER_RATE          ((uint16_t)((BAT_DESIGN_CAP_MAH * 10UL + (BAT_TAPER_CURRENT_MA / 2U)) / BAT_TAPER_CURRENT_MA))
 
 /* ========================  BQ27441 REGISTERS  ============================== */
 
@@ -83,23 +76,15 @@
 #define BQ27441_REG_SOH         0x20U  /**< State of health %             */
 
 /** @brief Control sub-commands (write 16-bit to REG_CONTROL). */
+#define BQ27441_CTRL_STATUS         0x0000U
 #define BQ27441_CTRL_DEVICE_TYPE    0x0001U
 #define BQ27441_CTRL_FW_VERSION     0x0002U
-#define BQ27441_CTRL_BAT_INSERT     0x000CU  /**< Force BAT_DET=1 (if BIE=0)  */
-#define BQ27441_CTRL_BAT_REMOVE     0x000DU
+#define BQ27441_CTRL_BAT_INSERT     0x000CU
+#define BQ27441_CTRL_CLEAR_HIBERNATE 0x0012U
 #define BQ27441_CTRL_SET_CFGUPDATE  0x0013U
+#define BQ27441_CTRL_IT_ENABLE      0x0021U
 #define BQ27441_CTRL_SEALED         0x0020U
-#define BQ27441_CTRL_IT_ENABLE      0x0021U  /**< Starts Impedance Track      */
 #define BQ27441_CTRL_SOFT_RESET     0x0042U
-
-/** @brief Extended / normal command addresses used outside CFGUPDATE. */
-#define BQ27441_REG_OPCONFIG        0x3AU  /**< OpConfig (16-bit, read-only) */
-
-/** @brief Data memory classes. */
-#define BQ27441_CLASS_REGISTERS     64U    /**< OpConfig lives here, offset 0*/
-
-/** @brief OpConfig bits. */
-#define BQ27441_OPCONFIG_BIE        0x2000U /**< Battery Insertion Enable pin */
 
 /** @brief Extended data commands for CFGUPDATE mode. */
 #define BQ27441_EXT_BLOCK_CTRL      0x61U  /**< BlockDataControl             */
@@ -115,16 +100,34 @@
 #define BQ27441_STATE_TERM_VOLT     16U    /**< Offset: Terminate Voltage    */
 #define BQ27441_STATE_TAPER_RATE    27U    /**< Offset: Taper Rate           */
 
-/** @brief FLAGS register bit masks. */
-#define BQ27441_FLAG_DSG            0x0001U  /**< Discharging detected    */
-#define BQ27441_FLAG_SOCF           0x0002U  /**< SOC Final threshold     */
-#define BQ27441_FLAG_SOC1           0x0004U  /**< SOC Threshold 1         */
-#define BQ27441_FLAG_BAT_DET        0x0008U  /**< Battery detected        */
-#define BQ27441_FLAG_CFGUPMODE      0x0010U  /**< In CFGUPDATE mode       */
-#define BQ27441_FLAG_ITPOR          0x0020U  /**< POR, needs reconfigure  */
-#define BQ27441_FLAG_CHG            0x0100U  /**< Fast charging allowed   */
-#define BQ27441_FLAG_FC             0x0200U  /**< Full Charged detected   */
-#define BQ27441_FLAG_OT             0x8000U  /**< Over-temperature        */
+/** @brief FLAGS register bit masks (register 0x06). */
+#define BQ27441_FLAG_DSG            (1U << 0)   /**< Discharging                  */
+#define BQ27441_FLAG_SOCF           (1U << 1)   /**< State-of-charge final alarm  */
+#define BQ27441_FLAG_SOC1           (1U << 2)   /**< State-of-charge threshold 1  */
+#define BQ27441_FLAG_BAT_DET        (1U << 3)   /**< Battery detected             */
+#define BQ27441_FLAG_CFGUPMODE      (1U << 4)   /**< Config update mode active    */
+#define BQ27441_FLAG_ITPOR          (1U << 5)   /**< IT power-on reset            */
+#define BQ27441_FLAG_OCVTAKEN       (1U << 7)   /**< OCV measurement taken        */
+#define BQ27441_FLAG_CHG            (1U << 8)   /**< Fast charging allowed        */
+#define BQ27441_FLAG_FC             (1U << 9)   /**< Full charge                  */
+#define BQ27441_FLAG_UT             (1U << 14)  /**< Under-temperature            */
+#define BQ27441_FLAG_OT             (1U << 15)  /**< Over-temperature             */
+
+/** @brief CONTROL_STATUS bit masks (response to sub-command 0x0000). */
+#define BQ27441_STATUS_VOK          (1U << 1)   /**< Voltage OK for Qmax update   */
+#define BQ27441_STATUS_RUP_DIS      (1U << 2)   /**< Ra update disabled           */
+#define BQ27441_STATUS_LDMD         (1U << 3)   /**< Load mode                    */
+#define BQ27441_STATUS_SLEEP        (1U << 4)   /**< Sleep mode active            */
+#define BQ27441_STATUS_HIBERNATE    (1U << 6)   /**< Hibernate mode active        */
+#define BQ27441_STATUS_INITCOMP     (1U << 7)   /**< Initialization complete      */
+#define BQ27441_STATUS_RES_UP       (1U << 8)   /**< Resistance update            */
+#define BQ27441_STATUS_QMAX_UP      (1U << 9)   /**< Qmax update                  */
+#define BQ27441_STATUS_BCA          (1U << 10)  /**< Board calibration active     */
+#define BQ27441_STATUS_CCA          (1U << 11)  /**< CC calibration active        */
+#define BQ27441_STATUS_CALMODE      (1U << 12)  /**< Calibration mode             */
+#define BQ27441_STATUS_SS           (1U << 13)  /**< Sealed state                 */
+#define BQ27441_STATUS_WDRESET      (1U << 14)  /**< Watchdog reset               */
+#define BQ27441_STATUS_SHUTDOWNEN   (1U << 15)  /**< Shutdown enabled             */
 
 /** @brief Unseal keys (default from factory). */
 #define BQ27441_UNSEAL_KEY_A        0x8000U
@@ -133,39 +136,19 @@
 /** @brief Expected device type ID for BQ27441-G1. */
 #define BQ27441_DEVICE_TYPE_ID      0x0421U
 
-/* ========================  ENUMERATIONS  =================================== */
-
-/** @brief Battery operating state. */
-typedef enum {
-    BAT_STATE_IDLE        = 0,  /**< Connected, negligible current flow    */
-    BAT_STATE_CHARGING    = 1,  /**< Current flowing INTO the battery      */
-    BAT_STATE_DISCHARGING = 2,  /**< Current flowing OUT of the battery    */
-} BatState_e;
-
 /* ========================  STRUCTURES  ===================================== */
 
 /** @brief Complete battery status from BQ27441. */
 typedef struct {
-    /* --- Raw measurements --- */
-    uint16_t    voltage_mV;    /**< Battery voltage in mV                  */
-    int16_t     current_mA;    /**< Average current in mA (+chg / -dsg)    */
-    int16_t     power_mW;      /**< Average power in mW (+chg / -dsg)      */
-    uint16_t    soc_pct;       /**< State of Charge, 0–100 %               */
-    uint16_t    soh_pct;       /**< State of Health, 0–100 %               */
-    uint16_t    rm_mAh;        /**< Remaining Capacity in mAh              */
-    uint16_t    fcc_mAh;       /**< Full Charge Capacity in mAh            */
-    int16_t     temp_c10;      /**< Temperature in 0.1 °C                  */
-    uint16_t    flags;         /**< Raw BQ27441 flags register             */
-
-    /* --- Derived status --- */
-    BatState_e  state;         /**< Idle / charging / discharging          */
-    bool        full;          /**< True if V ≥ BAT_FULL_VOLTAGE_MV or FC  */
-    bool        ready;         /**< True if connected and readings valid   */
-
-    /* --- Time estimate --- */
-    uint16_t    eta_min;       /**< Time-to-empty (discharging) or
-                                    time-to-full (charging) in minutes.
-                                    BAT_ETA_INVALID when idle/full.        */
+    uint16_t voltage_mV;       /**< Battery voltage in mV              */
+    int16_t  avg_current_mA;   /**< Average current in mA (signed)     */
+    uint16_t soc_pct;          /**< State of charge 0-100 %            */
+    uint16_t remaining_mAh;    /**< Remaining capacity in mAh          */
+    uint16_t full_cap_mAh;     /**< Full charge capacity in mAh        */
+    uint16_t soh_pct;          /**< State of health 0-100 %            */
+    int16_t  temp_c10;         /**< Temperature in 0.1 °C              */
+    uint16_t flags;            /**< Raw FLAGS register (0x06)          */
+    uint16_t ctrl_status;      /**< Raw CONTROL_STATUS (sub-cmd 0x0000)*/
 } BatGauge_Data_t;
 
 /* ================================  API  ==================================== */
@@ -209,11 +192,12 @@ HAL_StatusTypeDef BatGauge_SoftReset(void);
  * @brief  Configures the BQ27441 with the battery parameters defined above.
  * @details Unseals the device, enters CFGUPDATE mode, writes Design Capacity,
  *          Design Energy, Terminate Voltage, and Taper Rate, then seals back.
- *          Only needs to run once (values persist in NVM). Check ITPOR flag
- *          to know if reconfiguration is needed after power loss.
+ *          Only needs to run once (values persist in NVM). Called automatically
+ *          by BatGauge_Init() when the ITPOR flag is detected.
+ * @param  itpor  Pass true if ITPOR was set; triggers BAT_INSERT + extra reset.
  * @return HAL_OK on success.
  */
-HAL_StatusTypeDef BatGauge_Configure(void);
+HAL_StatusTypeDef BatGauge_Configure(bool itpor);
 
 /**
  * @brief  Reads the battery voltage from the ADC potentiometer divider.
