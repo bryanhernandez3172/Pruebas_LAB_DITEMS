@@ -156,6 +156,12 @@ int main(void)
   Gps_Init(&hgps);
   Gps_SendMTK(&hgps, GPS_OUTPUT_RMC_GGA);
   Gps_SendMTK(&hgps, GPS_FIX_0_5HZ);
+  HAL_Delay(200);
+  /*Tracking test, init of tracking*/
+  Gps_StartTracking(&hgps);
+  track_session_start_ms = HAL_GetTick();
+  track_last_update_ms   = track_session_start_ms;
+  HAL_Delay(200);
 
   /* ICM-20948 9-axis IMU (I2C1) — keep the board still until calibration ends */
   icm_init_status = ICM20948_Init(&icm);
@@ -178,27 +184,27 @@ int main(void)
 	     *  GPS MODULE
 	     * ============================================================ */
 		/*Get and process all data */
-	    Gps_Process(&hgps);
-
-	    /* ---- Tracking: 30-s session → stop → 5-s pause → restart ---- */
-	    uint32_t now = HAL_GetTick();
-
-	    /* Call Gps_UpdateTracking every 3 s while the session is active */
-	    if (hgps.tracking_active) {
-	        if ((now - track_last_update_ms) >= GPS_TRACKING_UPDATE_MS) {
-	            Gps_UpdateTracking(&hgps);
-	            track_last_update_ms = now;
-	        }
-
-	        /* End of 30-s window */
-	        if ((now - track_session_start_ms) >= GPS_TRACKING_WINDOW_MS) {
-	            Gps_StopTracking(&hgps);
-	            HAL_Delay(GPS_TRACKING_PAUSE_MS);   /* 5-s blocking pause */
-	            Gps_StartTracking(&hgps);
-	            track_session_start_ms = HAL_GetTick();
-	            track_last_update_ms   = track_session_start_ms;
-	        }
-	    }
+//	    Gps_Process(&hgps);
+//
+//	    /* ---- Tracking: 30-s session → stop → 5-s pause → restart ---- */
+//	    uint32_t now = HAL_GetTick();
+//
+//	    /* Call Gps_UpdateTracking every 3 s while the session is active */
+//	    if (hgps.tracking_active) {
+//	        if ((now - track_last_update_ms) >= GPS_TRACKING_UPDATE_MS) {
+//	            Gps_UpdateTracking(&hgps);
+//	            track_last_update_ms = now;
+//	        }
+//
+//	        /* End of 30-s window */
+//	        if ((now - track_session_start_ms) >= GPS_TRACKING_WINDOW_MS) {
+//	            Gps_StopTracking(&hgps);
+//	            HAL_Delay(GPS_TRACKING_PAUSE_MS);   /* 5-s blocking pause */
+//	            Gps_StartTracking(&hgps);
+//	            track_session_start_ms = HAL_GetTick();
+//	            track_last_update_ms   = track_session_start_ms;
+//	        }
+//	    }
 
 	/* ============================================================
 	 *  MENU SYSTEM — Poll buttons and update display
@@ -216,12 +222,12 @@ int main(void)
 //    bat_adc_mV  = BatAdc_ReadVoltage_mV();
 	HAL_Delay(1000);
 
-    /* ============================================================
-     *  ICM-20948 9-AXIS IMU
-     * ============================================================ */
-	  icm_read_status  = ICM20948_ReadAll(&icm, &icm_data);
-	  HAL_Delay(1);
-
+//    /* ============================================================
+//     *  ICM-20948 9-AXIS IMU
+//     * ============================================================ */
+//	  icm_read_status  = ICM20948_ReadAll(&icm, &icm_data);
+//	  HAL_Delay(1);
+//
   }
   /* USER CODE END 3 */
 }

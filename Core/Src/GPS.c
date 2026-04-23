@@ -449,7 +449,7 @@ static double haversine_m(double lat1, double lon1, double lat2, double lon2)
 GpsStatus_e Gps_StartTracking(Gps_Handle_t *h)
 {
     if (h == NULL) return GPS_ERR_PARAM;
-    if (!h->data.position_valid) return GPS_ERR_NO_FIX;
+    //if (!h->data.position_valid) return GPS_ERR_NO_FIX;
 
     h->tracking_active = true;
     h->total_distance  = 0.0f;
