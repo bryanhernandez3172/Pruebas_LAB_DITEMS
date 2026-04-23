@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 /* ========================  EXTERNAL HAL HANDLES  ========================== */
 
@@ -426,4 +427,56 @@ void Gps_FormatPosition(Gps_Handle_t *h)
 
     snprintf(h->data.position_str, GPS_POSITION_STR_LEN,
              "%.6f,%.6f", h->data.latitude, h->data.longitude);
+}
+
+/* ========================  DISTANCE TRACKING  ============================== */
+
+#define GPS_TRACK_MIN_DIST_M    3.0
+#define GPS_TRACK_MAX_DIST_M    80.0
+#define GPS_EARTH_RADIUS_M      6371000.0
+#define GPS_DEG2RAD(d)          ((d) * M_PI / 180.0)
+
+static double haversine_m(double lat1, double lon1, double lat2, double lon2)
+{
+    double dlat = GPS_DEG2RAD(lat2 - lat1);
+    double dlon = GPS_DEG2RAD(lon2 - lon1);
+    double a = sin(dlat / 2.0) * sin(dlat / 2.0)
+             + cos(GPS_DEG2RAD(lat1)) * cos(GPS_DEG2RAD(lat2))
+             * sin(dlon / 2.0) * sin(dlon / 2.0);
+    return GPS_EARTH_RADIUS_M * 2.0 * atan2(sqrt(a), sqrt(1.0 - a));
+}
+
+GpsStatus_e Gps_StartTracking(Gps_Handle_t *h)
+{
+    if (h == NULL) return GPS_ERR_PARAM;
+    if (!h->data.position_valid) return GPS_ERR_NO_FIX;
+
+    h->tracking_active = true;
+    h->total_distance  = 0.0f;
+    h->last_lat        = h->data.latitude;
+    h->last_lon        = h->data.longitude;
+
+    return GPS_OK;
+}
+
+void Gps_UpdateTracking(Gps_Handle_t *h)
+{
+    if (h == NULL) return;
+    if (!h->tracking_active) return;
+    if (!h->data.position_valid) return;
+
+    double dist = haversine_m(h->last_lat, h->last_lon,
+                              h->data.latitude, h->data.longitude);
+
+    if (dist >= GPS_TRACK_MIN_DIST_M && dist <= GPS_TRACK_MAX_DIST_M) {
+        h->total_distance += (float)dist;
+        h->last_lat = h->data.latitude;
+        h->last_lon = h->data.longitude;
+    }
+}
+
+void Gps_StopTracking(Gps_Handle_t *h)
+{
+    if (h == NULL) return;
+    h->tracking_active = false;
 }

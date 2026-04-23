@@ -166,13 +166,31 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	/* ============================================================
-	 *  GPS MODULE
-	 * ============================================================ */
-    //Gps_Process(&hgps);
-    if (HAL_UART_Receive(&huart1, &rx, 1, 100) == HAL_OK){
-    	cont_uart++;
-    }
+	    /* ============================================================
+	     *  GPS MODULE
+	     * ============================================================ */
+		/*Get and process all data */
+	//    Gps_Process(&hgps);
+	//
+	//    /* ---- Tracking: 30-s session → stop → 5-s pause → restart ---- */
+	//    uint32_t now = HAL_GetTick();
+	//
+	//    /* Call Gps_UpdateTracking every 3 s while the session is active */
+	//    if (hgps.tracking_active) {
+	//        if ((now - track_last_update_ms) >= GPS_TRACKING_UPDATE_MS) {
+	//            Gps_UpdateTracking(&hgps);
+	//            track_last_update_ms = now;
+	//        }
+	//
+	//        /* End of 30-s window */
+	//        if ((now - track_session_start_ms) >= GPS_TRACKING_WINDOW_MS) {
+	//            Gps_StopTracking(&hgps);
+	//            HAL_Delay(GPS_TRACKING_PAUSE_MS);   /* 5-s blocking pause */
+	//            Gps_StartTracking(&hgps);
+	//            track_session_start_ms = HAL_GetTick();
+	//            track_last_update_ms   = track_session_start_ms;
+	//        }
+	//    }
 
 	/* ============================================================
 	 *  MENU SYSTEM — Poll buttons and update display

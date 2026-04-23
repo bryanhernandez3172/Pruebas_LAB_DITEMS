@@ -143,6 +143,21 @@ static ICM20948_Status_e icm_slv4_txn(ICM20948_t *dev, bool is_read,
 }
 
 /**
+ * @brief  Hard-resets the STM32 I2C peripheral by deinit + init. Clears any
+ *         stuck BUSY flag left behind when a slave hangs the bus, e.g. after
+ *         the sensor is briefly disconnected.
+ * @note   HAL_I2C_Init re-applies the parameters already stored in the handle
+ *         (timing, own address, addressing mode) so CubeMX settings survive.
+ */
+static HAL_StatusTypeDef icm_i2c_reset(void)
+{
+    HAL_StatusTypeDef st = HAL_I2C_DeInit(ICM_I2C);
+    if (st != HAL_OK) return st;
+    HAL_Delay(5U);
+    return HAL_I2C_Init(ICM_I2C);
+}
+
+/**
  * @brief  Assembles a big-endian signed 16-bit value from two bytes
  *         (used for accel, gyro, temp).
  */
@@ -178,9 +193,13 @@ ICM20948_Status_e ICM20948_Init(ICM20948_t *dev)
 {
     if (dev == NULL) return ICM20948_ERR_PARAM;
 
-    memset(dev, 0, sizeof(*dev));
-    dev->addr         = ICM_ADDR;
-    dev->current_bank = 0xFFU;          /* force first icm_select_bank to write */
+    /* Preserve user-visible state across re-inits: calibration, flags that
+     * other code may be watching, and the recovery counter. Only reset the
+     * low-level bookkeeping we own. */
+    dev->addr                   = ICM_ADDR;
+    dev->current_bank           = 0xFFU; /* force first icm_select_bank to write */
+    dev->initialized            = false;
+    dev->consecutive_i2c_errors = 0U;
 
     /* --- Soft reset and wake --- */
     if (icm_write_reg(dev, 0U, ICM_PWR_MGMT_1,
@@ -354,10 +373,23 @@ ICM20948_Status_e ICM20948_ReadAll(ICM20948_t *dev, ICM20948_Data_t *out)
     if ((dev == NULL) || (out == NULL)) return ICM20948_ERR_PARAM;
 
     uint8_t buf[ICM_READALL_LEN];
-    if (icm_read_bytes(dev, 0U, ICM_ACCEL_XOUT_H,
-                       buf, ICM_READALL_LEN) != HAL_OK) {
+    HAL_StatusTypeDef st = icm_read_bytes(dev, 0U, ICM_ACCEL_XOUT_H,
+                                          buf, ICM_READALL_LEN);
+
+    /* On I2C failure, try to unstick the bus and re-init the sensor. Ignore
+     * the recover return code — mag-init errors (TIMEOUT, MAG_ID, MAG_NACK)
+     * still leave the main bus usable for accel/gyro. We only care whether
+     * the next read succeeds. */
+    for (uint8_t retry = 0U; (st != HAL_OK) && (retry < ICM_RECOVERY_RETRIES); retry++) {
+        (void)ICM20948_Recover(dev);
+        st = icm_read_bytes(dev, 0U, ICM_ACCEL_XOUT_H, buf, ICM_READALL_LEN);
+    }
+
+    if (st != HAL_OK) {
+        dev->consecutive_i2c_errors++;
         return ICM20948_ERR_I2C;
     }
+    dev->consecutive_i2c_errors = 0U;
 
     /* Raw values */
     out->accel_raw[0] = be16(&buf[0]);
@@ -395,6 +427,27 @@ ICM20948_Status_e ICM20948_ReadAll(ICM20948_t *dev, ICM20948_Data_t *out)
     return ICM20948_OK;
 }
 
+/**
+ * @brief  Resets the I2C bus and re-runs the full init sequence. The cal
+ *         struct inside dev is left untouched so a previously calibrated
+ *         gyro bias survives a reconnect.
+ */
+ICM20948_Status_e ICM20948_Recover(ICM20948_t *dev)
+{
+    if (dev == NULL) return ICM20948_ERR_PARAM;
+
+    dev->total_recoveries++;
+    dev->initialized  = false;
+    dev->current_bank = 0xFFU;
+
+    if (icm_i2c_reset() != HAL_OK) {
+        return ICM20948_ERR_I2C;
+    }
+    HAL_Delay(10U);
+
+    return ICM20948_Init(dev);
+}
+
 #ifdef ICM_MAG_CAL_ENABLE
 /**
  * @brief  Minimal hard-iron calibration: tracks min/max of raw mag over
@@ -429,3 +482,4 @@ ICM20948_Status_e ICM20948_CalibrateMag(ICM20948_t *dev)
     return ICM20948_OK;
 }
 #endif
+

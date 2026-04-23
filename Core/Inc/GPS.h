@@ -207,6 +207,12 @@ typedef struct {
 
     /* ISR byte landing zone */
     uint8_t  rx_byte;                   /**< Last byte from UART interrupt   */
+
+    /* Distance tracking */
+    bool     tracking_active;           /**< true while tracking is running  */
+    float    total_distance;            /**< Accumulated distance in meters  */
+    double   last_lat;                  /**< Latitude of last accepted point */
+    double   last_lon;                  /**< Longitude of last accepted point */
 } Gps_Handle_t;
 
 /* ================================  API  =================================== */
@@ -269,6 +275,32 @@ void Gps_Reset(Gps_Handle_t *h);
  * @note   Called automatically by Gps_Process() when a valid fix is obtained.
  */
 void Gps_FormatPosition(Gps_Handle_t *h);
+
+/* --- Distance tracking --- */
+
+/**
+ * @brief  Activates tracking, resets accumulated distance, and stores the
+ *         current position as the first reference point.
+ * @param  h  Pointer to the GPS handle.
+ * @retval GPS_OK on success, GPS_ERR_NO_FIX if position is not valid yet.
+ */
+GpsStatus_e Gps_StartTracking(Gps_Handle_t *h);
+
+/**
+ * @brief  Computes the distance from the last accepted position to the current
+ *         one and adds it to total_distance when the delta is between 3 m and 80 m.
+ * @param  h  Pointer to the GPS handle.
+ * @note   Call every 3 seconds from the main loop.
+ *         Does nothing if tracking_active is false or position_valid is false.
+ */
+void Gps_UpdateTracking(Gps_Handle_t *h);
+
+/**
+ * @brief  Deactivates tracking. Accumulated distance is preserved in
+ *         h->total_distance until the next Gps_StartTracking() call.
+ * @param  h  Pointer to the GPS handle.
+ */
+void Gps_StopTracking(Gps_Handle_t *h);
 
 /* --- FORCE_ON pin control --- */
 

@@ -60,9 +60,17 @@
 #define ICM_ACCEL_FSR               ICM_ACCEL_FSR_4G
 #define ICM_GYRO_FSR                ICM_GYRO_FSR_500DPS
 
-/* Digital Low Pass Filter: 0..7. Value 3 ≈ 50 Hz cutoff on both accel/gyro */
+/* Digital Low Pass Filter: 0..7. Lower value = wider band, more noise.
+ * Higher value = narrower band, smoother output, more group delay.
+ *   0 → 197 Hz (gyro) / 246 Hz (accel)
+ *   3 →  51 Hz         /  50 Hz
+ *   4 →  24 Hz         /  24 Hz
+ *   5 →  12 Hz         /  12 Hz    <-- default, matches phone-like motion
+ *   6 →   6 Hz         /   6 Hz
+ * Most human motion lives below 5 Hz, so value 5 kills noise without
+ * smearing the signal. Drop to 4 if you feel the response is too sluggish. */
 
-#define ICM_DLPF_CFG                3U
+#define ICM_DLPF_CFG                5U
 
 /* Output data rate in Hz. Internal base is 1125 Hz, divided down */
 
@@ -72,6 +80,12 @@
 
 #define ICM_GYRO_CAL_SAMPLES        200U
 #define ICM_GYRO_CAL_DELAY_MS       5U
+
+/* Automatic bus recovery: if ICM20948_ReadAll() gets a HAL I2C error, the
+ * driver will reset the I2C peripheral and re-run Init() this many times
+ * before giving up on that call. 0 disables the retry. */
+
+#define ICM_RECOVERY_RETRIES        1U
 
 /* Uncomment to compile in magnetometer hard-iron calibration and correction.
  * Requires the user to call ICM20948_CalibrateMag() while slowly rotating
@@ -265,6 +279,8 @@ typedef struct {
 #ifdef ICM_MAG_CAL_ENABLE
     bool             mag_calibrated;        /**< True after figure-8 routine */
 #endif
+    uint32_t         consecutive_i2c_errors;/**< Reset to 0 on success       */
+    uint32_t         total_recoveries;      /**< Bus resets performed so far */
     ICM20948_Cal_t   cal;
 } ICM20948_t;
 
@@ -314,10 +330,22 @@ ICM20948_Status_e ICM20948_CalibrateGyroBias(ICM20948_t *dev);
  * @brief  Reads accel, gyro, temperature and magnetometer in a single 22-byte
  *         I2C transaction and fills the ICM20948_Data_t struct with raw and
  *         physical values.
+ *         On an I2C error the driver automatically resets the bus and retries
+ *         up to ICM_RECOVERY_RETRIES times before giving up.
  * @param  dev  Initialised handle.
  * @param  out  Destination snapshot.
  */
 ICM20948_Status_e ICM20948_ReadAll(ICM20948_t *dev, ICM20948_Data_t *out);
+
+/**
+ * @brief  Forces a full bus recovery: de-initialises the STM32 I2C peripheral,
+ *         re-initialises it and re-runs ICM20948_Init(). Call this manually if
+ *         the sensor is unplugged and reconnected, or if consecutive_i2c_errors
+ *         grows unbounded. Returns the init status.
+ * @param  dev  Handle to recover.
+ * @note   Gyro/mag calibration data stored in dev->cal is preserved.
+ */
+ICM20948_Status_e ICM20948_Recover(ICM20948_t *dev);
 
 #ifdef ICM_MAG_CAL_ENABLE
 /**
