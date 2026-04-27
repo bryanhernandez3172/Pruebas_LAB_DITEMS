@@ -146,7 +146,7 @@ int main(void)
 
   /* Battery monitor BQ27441 — auto-configures if ITPOR is set */
   bat_st = BatGauge_Init();
-  HAL_Delay(200);
+  HAL_Delay(1000);
 
   /* Menu system */
   Menu_Init(&hmenu);
@@ -215,12 +215,11 @@ int main(void)
 	/* ============================================================
 	 *  BATTERY MONITOR (BQ27441 + ADC POT)
 	 * ============================================================ */
-	/* Read all gauge registers + ADC */
-	memset(&bat_data, 0, sizeof(bat_data));
-	BatGauge_ReadAll(&bat_data);
-//    bat_adc_raw = BatAdc_ReadRaw();
-//    bat_adc_mV  = BatAdc_ReadVoltage_mV();
-	HAL_Delay(1000);
+	    static uint32_t bat_last_tick = 0U;
+	    if ((HAL_GetTick() - bat_last_tick) >= 3000U) {
+	        bat_last_tick = HAL_GetTick();
+	        BatGauge_Update(&bat_data);
+	    }
 
 //    /* ============================================================
 //     *  ICM-20948 9-AXIS IMU
